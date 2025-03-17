@@ -1,5 +1,5 @@
-// controllers/QuotationController.js
 const Quotation = require('../models/Quotation');
+const Job = require('../models/Job');
 
 exports.getAllQuotations = async (req, res) => {
   try {
@@ -30,11 +30,38 @@ exports.createQuotation = async (req, res) => {
   }
 };
 
-exports.updateQuotation = async (req, res) => {
+exports.updateQuotation = async (req, res) => { //update a quotation in general
   try {
     const quotation = await Quotation.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!quotation) return res.status(404).json({ message: 'Quotation not found' });
     res.json(quotation);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+exports.updateQuotationStatus = async (req, res) => { //update a quotation status
+  try {
+    const { status } = req.body;
+    const quotation = await Quotation.findById(req.params.id);
+    if (!quotation) return res.status(404).json({ message: 'Quotation not found' });
+
+    quotation.status = status;
+    await quotation.save();
+
+    // if status is 'aprobado', create a new Job
+    if (status === 'aprobado') {
+      const job = new Job({
+        quotation_id: quotation._id,
+        status: 'in_progress',
+        client_ok: 'false',
+        chambero_ok: 'false',
+      });
+      await job.save();
+      return res.status(201).json({ message: 'Quotation approved and Job created', job });
+    }
+
+    res.json({ message: `Quotation status updated to ${status}`, quotation });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

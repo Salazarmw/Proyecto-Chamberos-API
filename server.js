@@ -12,6 +12,8 @@ const jobRoutes = require('./routes/Jobs');
 const quotationRoutes = require('./routes/quotations');
 const reviewRoutes = require('./routes/reviews');
 const tagRoutes = require('./routes/tags');
+const provinceRoutes = require('./routes/provinces');
+const authRoutes = require('./routes/auth')
 
 // Middleware
 app.use(cors());
@@ -23,6 +25,8 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/tags', tagRoutes);
+app.use('/api/provinces', provinceRoutes);
+app.use('/api/auth', authRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI, {
