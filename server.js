@@ -16,7 +16,12 @@ const provinceRoutes = require('./routes/provinces');
 const authRoutes = require('./routes/auth')
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000", // Allows only the frontend
+    credentials: true, // Allows cookies and authentication headers
+  })
+);
 app.use(bodyParser.json());
 
 // Routes
@@ -42,7 +47,7 @@ db.once('open', () => {
 
 // Default route
 app.get('/', (req, res) => {
-  res.send('Backend Chamberos API'); //Para probar que el servidor está corriendo
+  res.send('Backend Chamberos API'); //To test that the server is running
 });
 
 // Start server
