@@ -22,10 +22,6 @@ app.use(
     credentials: true, // Allows cookies and authentication headers
   })
 );
-app.use(bodyParser.json());
-
-// Routes
-app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/reviews', reviewRoutes);
