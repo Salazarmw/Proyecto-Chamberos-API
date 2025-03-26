@@ -14,6 +14,7 @@ const reviewRoutes = require('./routes/reviews');
 const tagRoutes = require('./routes/tags');
 const provinceRoutes = require('./routes/provinces');
 const authRoutes = require('./routes/auth')
+const cantonsRoutes = require('./routes/cantons');
 
 // Middleware
 app.use(
@@ -22,12 +23,17 @@ app.use(
     credentials: true, // Allows cookies and authentication headers
   })
 );
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+
 app.use('/api/jobs', jobRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api/provinces', provinceRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/cantons', cantonsRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI, {
