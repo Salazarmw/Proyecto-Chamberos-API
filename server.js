@@ -34,6 +34,7 @@ app.use('/api/tags', tagRoutes);
 app.use('/api/provinces', provinceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cantons', cantonsRoutes);
+app.use('/api/users', userRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI, {
