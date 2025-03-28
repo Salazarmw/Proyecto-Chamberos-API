@@ -4,198 +4,107 @@ const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 
 // User registration
-exports.register = async (req, res) => {
+const register = async (req, res) => {
   try {
-    console.log("Register request body:", req.body);
-
-    const { name, lastname, email, password, user_type } = req.body;
-
-    if (!name || !email || !password || !user_type) {
-      return res.status(400).json({
-        message: "Faltan campos obligatorios",
-        errors: {
-          name: !name ? "El nombre es requerido" : null,
-          email: !email ? "El email es requerido" : null,
-          password: !password ? "La contraseña es requerida" : null,
-          user_type: !user_type ? "El tipo de usuario es requerido" : null,
-        },
-      });
-    }
-
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: req.body.email });
     if (existingUser) {
-      return res.status(400).json({
-        message: "El correo electrónico ya está registrado",
-        errors: {
-          email: "El correo electrónico ya está registrado",
-        },
-      });
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    if (!["client", "chambero"].includes(user_type)) {
-      return res.status(400).json({
-        message: "Tipo de usuario inválido",
-        errors: {
-          user_type: 'El tipo de usuario debe ser "client" o "chambero"',
-        },
-      });
-    }
-
-    if (
-      user_type === "chambero" &&
-      (!req.body.tags ||
-        !Array.isArray(req.body.tags) ||
-        req.body.tags.length === 0)
-    ) {
-      return res.status(400).json({
-        message: "Debe seleccionar al menos una categoría de servicio",
-        errors: {
-          tags: "Debe seleccionar al menos una categoría de servicio",
-        },
-      });
-    }
-
-    const userData = {
+    const user = new User({
       name: req.body.name,
-      lastname: req.body.lastname || "",
+      lastname: req.body.lastname,
       email: req.body.email,
-      password: await bcrypt.hash(password, 10),
+      password: req.body.password,
       user_type: req.body.user_type,
-      profile_photo: req.body.profile_photo || null,
-      birth_date: req.body.birth_date || null,
-      address: req.body.address || null,
-      province: req.body.province || null,
-      canton: req.body.canton || null,
-      phone: req.body.phone || "",
-    };
+      phone: req.body.phone,
+      province: req.body.province,
+      canton: req.body.canton,
+      address: req.body.address,
+      birth_date: req.body.birth_date,
+      tags: req.body.tags
+    });
 
-    if (user_type === "chambero" && req.body.tags) {
-      const validTags = req.body.tags.filter((tagId) =>
-        mongoose.Types.ObjectId.isValid(tagId)
-      );
-      userData.tags = validTags;
-    }
-
-    console.log("Creating user with data:", userData);
-
-    const user = new User(userData);
     const newUser = await user.save();
-
-    console.log("User created successfully:", newUser._id);
-
     const token = jwt.sign(
-      {
-        id: newUser._id,
-        email: newUser.email,
-        user_type: newUser.user_type,
-      },
-      process.env.JWT_SECRET || "defaultSecretKeyForDevelopment",
-      { expiresIn: "1d" }
+      { userId: newUser._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
     );
 
     res.status(201).json({
-      message: "Usuario registrado exitosamente",
+      token,
       user: {
-        _id: newUser._id,
+        id: newUser._id,
         name: newUser.name,
         lastname: newUser.lastname,
         email: newUser.email,
         user_type: newUser.user_type,
-      },
-      token,
+        phone: newUser.phone,
+        province: newUser.province,
+        canton: newUser.canton,
+        address: newUser.address,
+        birth_date: newUser.birth_date,
+        tags: newUser.tags
+      }
     });
   } catch (error) {
-    console.error("Error registering user:", error);
-
-    if (error.name === "ValidationError") {
-      const errors = {};
-      for (const field in error.errors) {
-        errors[field] = error.errors[field].message;
-      }
-      return res.status(400).json({
-        message: "Error de validación",
-        errors,
-      });
-    }
-
-    res.status(500).json({
-      message: "Error en el registro de usuario",
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Error creating user', error: error.message });
   }
 };
 
 // User login
-exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
+const login = async (req, res) => {
   try {
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "El correo y la contraseña son requeridos",
-        errors: {
-          email: !email ? "El correo es requerido" : null,
-          password: !password ? "La contraseña es requerida" : null,
-        },
-      });
-    }
-
+    const { email, password } = req.body;
     const user = await User.findOne({ email });
+    
     if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Credenciales inválidas" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const token = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        user_type: user.user_type,
-      },
-      process.env.JWT_SECRET || "defaultSecretKeyForDevelopment",
-      { expiresIn: "1d" }
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
     );
 
     res.json({
-      message: "Inicio de sesión exitoso",
+      token,
       user: {
-        _id: user._id,
+        id: user._id,
         name: user.name,
         lastname: user.lastname,
         email: user.email,
         user_type: user.user_type,
-      },
-      token,
+        phone: user.phone,
+        province: user.province,
+        canton: user.canton,
+        address: user.address,
+        birth_date: user.birth_date,
+        tags: user.tags
+      }
     });
-  } catch (err) {
-    console.error("Error logging in:", err);
-    res.status(500).json({
-      message: "Error en el inicio de sesión",
-      error: err.message,
-    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error logging in', error: error.message });
   }
 };
 
-exports.me = async (req, res) => {
+const me = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select("-password")
-      .populate("tags", "name description");
-
+    const user = await User.findById(req.user._id).select('-password');
     if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+      return res.status(404).json({ message: 'User not found' });
     }
-
     res.json(user);
-  } catch (err) {
-    console.error("Error fetching user data:", err);
-    res.status(500).json({
-      message: "Error interno del servidor",
-      error: err.message,
-    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user', error: error.message });
   }
 };
+
+module.exports = { register, login, me };

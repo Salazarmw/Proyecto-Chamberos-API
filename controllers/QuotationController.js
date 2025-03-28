@@ -4,12 +4,34 @@ const mongoose = require("mongoose");
 
 exports.getAllQuotations = async (req, res) => {
   try {
-    const quotations = await Quotation.find()
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    let query = {};
+
+    // Filter based on user type
+    if (user.user_type === 'client') {
+      query.client_id = user._id;
+    } else if (user.user_type === 'chambero') {
+      query.chambero_id = user._id;
+    }
+
+    // Add status filters if they exist
+    if (req.query.status && Array.isArray(req.query.status)) {
+      query.status = { $in: req.query.status };
+    }
+
+    const quotations = await Quotation.find(query)
       .populate("client_id", "name email")
       .populate("chambero_id", "name email")
       .sort({ createdAt: -1 });
+
     res.json(quotations);
   } catch (err) {
+    console.error("Error fetching quotations:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -120,7 +142,7 @@ exports.updateQuotationStatus = async (req, res) => {
     }
 
     const { status } = req.body;
-    if (!["pending", "accepted", "rejected", "offer"].includes(status)) {
+    if (!["pending", "accepted", "rejected", "offer", "counteroffer"].includes(status)) {
       return res.status(400).json({ message: "Invalid status value" });
     }
 
@@ -129,13 +151,22 @@ exports.updateQuotationStatus = async (req, res) => {
       return res.status(404).json({ message: "Quotation not found" });
     }
 
+    // Si es una contraoferta, actualizar también los otros campos
+    if (status === "counteroffer") {
+      if (req.body.price) quotation.price = req.body.price;
+      if (req.body.service_description) quotation.service_description = req.body.service_description;
+      if (req.body.scheduled_date) quotation.scheduled_date = req.body.scheduled_date;
+    }
+
     quotation.status = status;
     await quotation.save();
 
-    // if status is 'accepted', create a new Job
+    // If status is 'accepted', create a new Job
     if (status === "accepted") {
       const job = new Job({
         quotation_id: quotation._id,
+        client_id: quotation.client_id,
+        chambero_id: quotation.chambero_id,
         status: "in_progress",
         client_ok: false,
         chambero_ok: false,
@@ -158,6 +189,7 @@ exports.updateQuotationStatus = async (req, res) => {
       quotation: updatedQuotation,
     });
   } catch (err) {
+    console.error("Error updating quotation status:", err);
     res.status(400).json({ message: err.message });
   }
 };
