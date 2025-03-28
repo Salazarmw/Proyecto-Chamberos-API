@@ -1,12 +1,19 @@
 require('dotenv').config(); 
 const mongoose = require('mongoose');
 const Province = require('../models/Province');
+const Canton = require('../models/Canton');
 
 const seedProvinces = async () => {
   try {
+    // Connect to the database
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
 
-    await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-    console.log('Conectado a la base de datos');
+    // Clear existing data
+    await Province.deleteMany({});
+    await Canton.deleteMany({});
 
     const provinces = [
       {
@@ -39,13 +46,23 @@ const seedProvinces = async () => {
       }
     ];
 
-    for (const province of provinces) {
-      const createdProvince = await Province.create({ name: province.name });
-      const cantons = province.cantons.map(canton => ({ name: canton, province_id: createdProvince._id }));
-      await mongoose.connection.collection('cantons').insertMany(cantons);
+    // Insert provinces and cantons
+    for (const provinceData of provinces) {
+      const province = await Province.create({
+        name: provinceData.name,
+        code: provinceData.code
+      });
+
+      for (const cantonData of provinceData.cantons) {
+        await Canton.create({
+          name: cantonData.name,
+          code: cantonData.code,
+          province: province._id
+        });
+      }
     }
 
-    console.log('Provinces and cantons seeded');
+    console.log('Provinces and cantons seeded successfully');
   } catch (error) {
     console.error('Error al ejecutar el seeder:', error);
   } finally {

@@ -27,7 +27,7 @@ const quotationSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ["pending", "accepted", "rejected", "offer"],
+      enum: ["pending", "accepted", "rejected", "offer", "counteroffer"],
     },
   },
   {
