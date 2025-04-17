@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs');
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -114,41 +116,19 @@ exports.updateCurrentUser = async (req, res) => {
       updateData.tags = updateData.tags.filter(tagId => mongoose.Types.ObjectId.isValid(tagId));
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    )
-    .select('-password'); // Exclude password from response
+    // Update user with new data
+    Object.keys(updateData).forEach(key => {
+      if (allowedFields.includes(key)) {
+        user[key] = updateData[key];
+      }
+    });
 
-    if (!updatedUser) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    const updatedUser = await user.save();
 
-    // Validate that all fields are present
-    if (!req.body.current_password || !req.body.new_password || !req.body.confirm_password) {
-      return res.status(400).json({ message: 'All password fields are required' });
-    }
-
-    // Validate that passwords match
-    if (req.body.new_password !== req.body.confirm_password) {
-      return res.status(400).json({ message: 'New passwords do not match' });
-    }
-
-    // Verify current password
-    const isMatch = await user.comparePassword(req.body.current_password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Current password is incorrect' });
-    }
-
-    // Update password
-    user.password = req.body.new_password;
-    await user.save();
-
-    // Obtener el usuario actualizado con los tags poblados
+    // Get updated user with populated tags and without password
     const populatedUser = await User.findById(updatedUser._id)
       .populate('tags')
-      .select('-password'); // Excluir la contraseña de la respuesta
+      .select('-password');
     
     console.log("Usuario actualizado:", populatedUser);
     
@@ -195,7 +175,7 @@ exports.updatePassword = async (req, res) => {
     }
 
     // Verificar la contraseña actual
-    const isMatch = await user.matchPassword(current_password);
+    const isMatch = await user.comparePassword(current_password);
     if (!isMatch) {
       return res.status(400).json({
         message: 'Contraseña actual incorrecta',
@@ -216,5 +196,53 @@ exports.updatePassword = async (req, res) => {
       message: 'Error al actualizar la contraseña',
       errors: err.errors || err.message
     });
+  }
+};
+
+exports.updateProfilePhoto = async (req, res) => {
+  try {
+    console.log('Received file:', req.file);
+    console.log('Request body:', req.body);
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      // Delete the uploaded file if user not found
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Delete old profile photo if it exists
+    if (user.profile_photo) {
+      const oldPhotoPath = path.join(__dirname, '../uploads/profile-photos', path.basename(user.profile_photo));
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+
+    // Update user with new photo filename
+    user.profile_photo = req.file.filename;
+    const updatedUser = await user.save();
+
+    // Get user data without password and with populated tags
+    const userResponse = await User.findById(updatedUser._id)
+      .select('-password')
+      .populate('tags');
+
+    console.log('Updated user:', userResponse);
+    res.json(userResponse);
+
+  } catch (error) {
+    console.error('Error updating profile photo:', error);
+    // Clean up uploaded file if there was an error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ message: 'Error updating profile photo', error: error.message });
   }
 };
