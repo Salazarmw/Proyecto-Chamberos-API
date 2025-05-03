@@ -2,6 +2,16 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const AWS = require('aws-sdk');
+
+// Configurar S3
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION
+});
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -210,26 +220,24 @@ exports.updateProfilePhoto = async (req, res) => {
 
     const user = await User.findById(req.user.id);
     if (!user) {
-      // Delete the uploaded file if user not found
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
-      }
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Delete old profile photo if it exists
-    if (user.profile_photo) {
-      const oldPhotoPath = path.join(__dirname, '../uploads/profile-photos', path.basename(user.profile_photo));
-      if (fs.existsSync(oldPhotoPath)) {
-        fs.unlinkSync(oldPhotoPath);
-      }
-    }
+    // Subir la imagen a S3
+    const params = {
+      Bucket: 'chambero-profile-bucket',
+      Key: `profile-photos/${Date.now()}-${req.file.originalname}`,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype
+    };
 
-    // Update user with new photo filename
-    user.profile_photo = req.file.filename;
+    const { Location } = await s3.upload(params).promise();
+
+    // Actualizar el usuario con la nueva URL de la foto
+    user.profile_photo = Location;
     const updatedUser = await user.save();
 
-    // Get user data without password and with populated tags
+    // Obtener los datos del usuario sin la contraseña y con los tags poblados
     const userResponse = await User.findById(updatedUser._id)
       .select('-password')
       .populate('tags');
@@ -239,10 +247,6 @@ exports.updateProfilePhoto = async (req, res) => {
 
   } catch (error) {
     console.error('Error updating profile photo:', error);
-    // Clean up uploaded file if there was an error
-    if (req.file) {
-      fs.unlinkSync(req.file.path);
-    }
     res.status(500).json({ message: 'Error updating profile photo', error: error.message });
   }
 };
