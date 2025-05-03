@@ -2,14 +2,21 @@ const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
+const { sendVerificationEmail } = require("../utils/emailSender");
+const crypto = require("crypto");
 
 // User registration
 const register = async (req, res) => {
   try {
     const existingUser = await User.findOne({ email: req.body.email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: "User already exists" });
     }
+
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenExpires = new Date();
+    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24);
 
     const user = new User({
       name: req.body.name,
@@ -22,34 +29,38 @@ const register = async (req, res) => {
       canton: req.body.canton,
       address: req.body.address,
       birth_date: req.body.birth_date,
-      tags: req.body.tags
+      tags: req.body.tags,
+      verificationToken,
+      verificationTokenExpires,
     });
 
     const newUser = await user.save();
-    const token = jwt.sign(
-      { userId: newUser._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+
+    // Send verification email
+    const emailSent = await sendVerificationEmail(
+      newUser.email,
+      verificationToken
     );
+    if (!emailSent) {
+      return res
+        .status(500)
+        .json({ message: "Error sending verification email" });
+    }
 
     res.status(201).json({
-      token,
+      message:
+        "Registration successful. Please check your email for verification.",
       user: {
         id: newUser._id,
         name: newUser.name,
-        lastname: newUser.lastname,
         email: newUser.email,
         user_type: newUser.user_type,
-        phone: newUser.phone,
-        province: newUser.province,
-        canton: newUser.canton,
-        address: newUser.address,
-        birth_date: newUser.birth_date,
-        tags: newUser.tags
-      }
+      },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error creating user', error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error creating user", error: error.message });
   }
 };
 
@@ -58,21 +69,27 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    
+
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    // Check if email is verified
+    if (!user.isVerified) {
+      return res.status(403).json({
+        message: "Please verify your email before logging in",
+        isVerified: false,
+      });
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
 
     res.json({
       token,
@@ -87,24 +104,103 @@ const login = async (req, res) => {
         canton: user.canton,
         address: user.address,
         birth_date: user.birth_date,
-        tags: user.tags
-      }
+        tags: user.tags,
+        isVerified: user.isVerified,
+      },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error logging in', error: error.message });
+    res.status(500).json({ message: "Error logging in", error: error.message });
+  }
+};
+
+// Verify email
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = await User.findOne({
+      verificationToken: token,
+      verificationTokenExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification token" });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Email verified successfully" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error verifying email", error: error.message });
+  }
+};
+
+// Resend verification email
+const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: "Email already verified" });
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenExpires = new Date();
+    verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24);
+
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpires = verificationTokenExpires;
+    await user.save();
+
+    const emailSent = await sendVerificationEmail(
+      user.email,
+      verificationToken
+    );
+    if (!emailSent) {
+      return res
+        .status(500)
+        .json({ message: "Error sending verification email" });
+    }
+
+    res.json({ message: "Verification email resent successfully" });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error resending verification email",
+      error: error.message,
+    });
   }
 };
 
 const me = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select("-password");
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
     res.json(user);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching user', error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching user", error: error.message });
   }
 };
 
-module.exports = { register, login, me };
+module.exports = {
+  register,
+  login,
+  verifyEmail,
+  resendVerificationEmail,
+  me,
+};

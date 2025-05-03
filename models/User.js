@@ -16,13 +16,16 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, default: "" },
   tags: [{ type: mongoose.Schema.Types.ObjectId, ref: "Tag" }],
   tokens: [{ token: { type: String, required: true } }], // Array to store multiple tokens
+  isVerified: { type: Boolean, default: false },
+  verificationToken: { type: String },
+  verificationTokenExpires: { type: Date },
 });
 
 // Password hash middleware
 userSchema.pre("save", async function (next) {
   try {
     // Skip if password is not modified
-    if (!this.isModified('password')) {
+    if (!this.isModified("password")) {
       return next();
     }
 
@@ -36,7 +39,7 @@ userSchema.pre("save", async function (next) {
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(enteredPassword) {
+userSchema.methods.comparePassword = async function (enteredPassword) {
   try {
     return await bcrypt.compare(enteredPassword, this.password);
   } catch (error) {

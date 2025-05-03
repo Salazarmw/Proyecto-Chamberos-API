@@ -1,14 +1,20 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const AuthController = require('../controllers/AuthController'); // Make sure this path is correct
+const {
+  register,
+  login,
+  verifyEmail,
+  resendVerificationEmail,
+  me
+} = require("../controllers/authController");
 
-// Register route
-router.post('/register', AuthController.register); // Verify that 'register' is defined in AuthController
-
-// Login route
-router.post('/login', AuthController.login); // Verify that 'login' is defined in AuthController
+// Auth routes
+router.post("/register", register);
+router.post("/login", login);
+router.post("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerificationEmail);
 
 // Get current user route
-router.get('/me', require('../middleware/authMiddleware'), AuthController.me); // Verify that 'me' is defined in AuthController
+router.get("/me", require("../middleware/authMiddleware"), me);
 
 module.exports = router;
