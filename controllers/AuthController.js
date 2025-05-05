@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const { sendVerificationEmail } = require("../utils/emailSender");
 const crypto = require("crypto");
+const passport = require("../config/passport");
 
 // User registration
 const register = async (req, res) => {
@@ -254,10 +255,85 @@ const me = async (req, res) => {
   }
 };
 
+// Social Authentication Callbacks
+const handleSocialAuthCallback = async (req, res) => {
+  try {
+    const user = req.user;
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
+    
+    // Enviar el token como respuesta JSON en lugar de redireccionar
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        lastname: user.lastname,
+        email: user.email,
+        user_type: user.user_type,
+        phone: user.phone,
+        province: user.province,
+        canton: user.canton,
+        address: user.address,
+        birth_date: user.birth_date,
+        tags: user.tags,
+        isVerified: user.isVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Error en handleSocialAuthCallback:", error);
+    res.status(500).json({ error: "Authentication failed" });
+  }
+};
+
+// Google Authentication Routes
+const googleAuth = passport.authenticate('google', {
+  scope: ['profile', 'email']
+});
+
+const googleCallback = [
+  passport.authenticate('google', {
+    failureRedirect: '/login',
+    session: false
+  }),
+  (req, res) => {
+    try {
+      const user = req.user;
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "24h",
+      });
+
+      // Redirigir al frontend con el token
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+    } catch (error) {
+      console.error('Error in googleCallback:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+    }
+  }
+];
+
+// Facebook Authentication Routes
+const facebookAuth = passport.authenticate('facebook', {
+  scope: ['email']
+});
+
+const facebookCallback = [
+  passport.authenticate('facebook', {
+    failureRedirect: '/login',
+    session: false
+  }),
+  handleSocialAuthCallback
+];
+
 module.exports = {
   register,
   login,
   verifyEmail,
   resendVerificationEmail,
   me,
+  googleAuth,
+  googleCallback,
+  facebookAuth,
+  facebookCallback
 };
