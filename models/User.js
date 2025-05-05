@@ -19,13 +19,16 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   verificationToken: { type: String },
   verificationTokenExpires: { type: Date },
+  // Social authentication fields
+  socialId: { type: String },
+  socialProvider: { type: String, enum: ['google', 'facebook'] },
 });
 
 // Password hash middleware
 userSchema.pre("save", async function (next) {
   try {
-    // Skip if password is not modified
-    if (!this.isModified("password")) {
+    // Skip if password is not modified or if it's a social login
+    if (!this.isModified("password") || this.socialProvider) {
       return next();
     }
 
@@ -41,6 +44,10 @@ userSchema.pre("save", async function (next) {
 // Compare password method
 userSchema.methods.comparePassword = async function (enteredPassword) {
   try {
+    // If it's a social login, return true
+    if (this.socialProvider) {
+      return true;
+    }
     return await bcrypt.compare(enteredPassword, this.password);
   } catch (error) {
     throw error;
