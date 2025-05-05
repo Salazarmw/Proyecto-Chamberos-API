@@ -250,3 +250,30 @@ exports.updateProfilePhoto = async (req, res) => {
     res.status(500).json({ message: 'Error updating profile photo', error: error.message });
   }
 };
+
+// Buscar usuario por slug (nombre-apellido)
+exports.getUserBySlug = async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    if (!slug) return res.status(400).json({ message: 'Slug is required' });
+
+    // Separar el slug en nombre y apellido
+    const [namePart, ...lastnameParts] = slug.split('-');
+    if (!namePart || lastnameParts.length === 0) {
+      return res.status(400).json({ message: 'Invalid slug format' });
+    }
+    const name = namePart.replace(/\b\w/g, l => l.toUpperCase());
+    const lastname = lastnameParts.join(' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    // Buscar usuario ignorando mayúsculas/minúsculas y espacios
+    const user = await User.findOne({
+      name: { $regex: `^${name}$`, $options: 'i' },
+      lastname: { $regex: `^${lastname}$`, $options: 'i' }
+    }).populate('tags');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

@@ -10,6 +10,7 @@ router.put('/me/password', authMiddleware, UserController.updatePassword);
 router.post('/me/profile-photo', authMiddleware, upload.single('profile_photo'), UserController.updateProfilePhoto);
 
 router.get('/', UserController.getAllUsers);
+router.get('/slug/:slug', UserController.getUserBySlug);
 router.get('/:id', UserController.getUserById);
 router.post('/', UserController.createUser);
 router.put('/:id', authMiddleware, UserController.updateUser);
