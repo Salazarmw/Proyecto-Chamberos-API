@@ -4,10 +4,18 @@ const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
 const { sendVerificationEmail } = require("../utils/emailSender");
 const crypto = require("crypto");
+const passport = require("../config/passport");
 
 // User registration
 const register = async (req, res) => {
+  let newUser = null;
+  let session = null;
+
   try {
+    // Iniciar una sesión de MongoDB para transacciones
+    session = await mongoose.startSession();
+    session.startTransaction();
+
     const existingUser = await User.findOne({ email: req.body.email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
@@ -18,7 +26,7 @@ const register = async (req, res) => {
     const verificationTokenExpires = new Date();
     verificationTokenExpires.setHours(verificationTokenExpires.getHours() + 24);
 
-    const user = new User({
+    newUser = new User({
       name: req.body.name,
       lastname: req.body.lastname,
       email: req.body.email,
@@ -34,33 +42,83 @@ const register = async (req, res) => {
       verificationTokenExpires,
     });
 
-    const newUser = await user.save();
+    await newUser.save({ session });
 
     // Send verification email
-    const emailSent = await sendVerificationEmail(
-      newUser.email,
-      verificationToken
-    );
-    if (!emailSent) {
-      return res
-        .status(500)
-        .json({ message: "Error sending verification email" });
+    try {
+      const emailSent = await sendVerificationEmail(
+        newUser.email,
+        verificationToken
+      );
+
+      if (!emailSent) {
+        throw new Error("Failed to send verification email");
+      }
+
+      // Si todo sale bien, confirmar la transacción
+      await session.commitTransaction();
+
+      res.status(201).json({
+        message:
+          "Registration successful. Please check your email for verification.",
+        user: {
+          id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          user_type: newUser.user_type,
+        },
+      });
+    } catch (emailError) {
+      console.error("Error sending verification email:", emailError);
+
+      // Si falla el envío del correo, abortar la transacción
+      await session.abortTransaction();
+
+      // Intentar eliminar el usuario manualmente por si la transacción falla
+      if (newUser) {
+        try {
+          await User.findByIdAndDelete(newUser._id);
+        } catch (deleteError) {
+          console.error("Error deleting user after failed email:", deleteError);
+        }
+      }
+
+      return res.status(500).json({
+        message: "Error sending verification email",
+        error: emailError.message,
+      });
+    }
+  } catch (error) {
+    // Si hay algún error durante el proceso, abortar la transacción
+    if (session) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        console.error("Error aborting transaction:", abortError);
+      }
     }
 
-    res.status(201).json({
-      message:
-        "Registration successful. Please check your email for verification.",
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        user_type: newUser.user_type,
-      },
+    // Intentar eliminar el usuario manualmente por si la transacción falla
+    if (newUser) {
+      try {
+        await User.findByIdAndDelete(newUser._id);
+      } catch (deleteError) {
+        console.error(
+          "Error deleting user after failed registration:",
+          deleteError
+        );
+      }
+    }
+
+    res.status(500).json({
+      message: "Error creating user",
+      error: error.message,
     });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error creating user", error: error.message });
+  } finally {
+    // Cerrar la sesión si existe
+    if (session) {
+      session.endSession();
+    }
   }
 };
 
@@ -197,10 +255,85 @@ const me = async (req, res) => {
   }
 };
 
+// Social Authentication Callbacks
+const handleSocialAuthCallback = async (req, res) => {
+  try {
+    const user = req.user;
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "24h",
+    });
+    
+    // Enviar el token como respuesta JSON en lugar de redireccionar
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        lastname: user.lastname,
+        email: user.email,
+        user_type: user.user_type,
+        phone: user.phone,
+        province: user.province,
+        canton: user.canton,
+        address: user.address,
+        birth_date: user.birth_date,
+        tags: user.tags,
+        isVerified: user.isVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Error en handleSocialAuthCallback:", error);
+    res.status(500).json({ error: "Authentication failed" });
+  }
+};
+
+// Google Authentication Routes
+const googleAuth = passport.authenticate('google', {
+  scope: ['profile', 'email']
+});
+
+const googleCallback = [
+  passport.authenticate('google', {
+    failureRedirect: '/login',
+    session: false
+  }),
+  (req, res) => {
+    try {
+      const user = req.user;
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "24h",
+      });
+
+      // Redirigir al frontend con el token
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+    } catch (error) {
+      console.error('Error in googleCallback:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+    }
+  }
+];
+
+// Facebook Authentication Routes
+const facebookAuth = passport.authenticate('facebook', {
+  scope: ['email']
+});
+
+const facebookCallback = [
+  passport.authenticate('facebook', {
+    failureRedirect: '/login',
+    session: false
+  }),
+  handleSocialAuthCallback
+];
+
 module.exports = {
   register,
   login,
   verifyEmail,
   resendVerificationEmail,
   me,
+  googleAuth,
+  googleCallback,
+  facebookAuth,
+  facebookCallback
 };
