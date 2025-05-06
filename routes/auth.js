@@ -9,7 +9,7 @@ const {
   googleAuth,
   googleCallback,
   facebookAuth,
-  facebookCallback
+  facebookCallback,
 } = require("../controllers/AuthController");
 
 // Auth routes
