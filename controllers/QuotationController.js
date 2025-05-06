@@ -153,6 +153,16 @@ exports.updateQuotationStatus = async (req, res) => {
 
     // Si es una contraoferta, actualizar también los otros campos
     if (status === "counteroffer") {
+      // Guardar los campos originales solo si aún no existen
+      if (!quotation.original_service_description) {
+        quotation.original_service_description = quotation.service_description;
+      }
+      if (!quotation.original_scheduled_date) {
+        quotation.original_scheduled_date = quotation.scheduled_date;
+      }
+      if (!quotation.original_price) {
+        quotation.original_price = quotation.price;
+      }
       if (req.body.price) quotation.price = req.body.price;
       if (req.body.service_description) quotation.service_description = req.body.service_description;
       if (req.body.scheduled_date) quotation.scheduled_date = req.body.scheduled_date;

@@ -29,6 +29,18 @@ const quotationSchema = new mongoose.Schema(
       required: true,
       enum: ["pending", "accepted", "rejected", "offer", "counteroffer"],
     },
+    original_service_description: {
+      type: String,
+      default: null,
+    },
+    original_scheduled_date: {
+      type: Date,
+      default: null,
+    },
+    original_price: {
+      type: Number,
+      default: null,
+    },
   },
   {
     timestamps: true,
