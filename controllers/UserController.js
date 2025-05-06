@@ -13,7 +13,8 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION
 });
 
-exports.getAllUsers = async (req, res) => {
+// Definir todas las funciones del controlador
+const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({ user_type: "chambero" }).populate('tags');
     res.json(users);
@@ -22,7 +23,7 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-exports.getUserById = async (req, res) => {
+const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate('tags');
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -32,7 +33,7 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-exports.createUser = async (req, res) => {
+const createUser = async (req, res) => {
   const { name, email, password, user_type, profile_photo, birth_date, address, province, canton, tags } = req.body;
 
   const user = new User({
@@ -56,7 +57,7 @@ exports.createUser = async (req, res) => {
   }
 };
 
-exports.updateUser = async (req, res) => {
+const updateUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -65,7 +66,7 @@ exports.updateUser = async (req, res) => {
 
     if (name) user.name = name;
     if (email) user.email = email;
-    if (password) user.password = password; //Should hash the password in the future
+    if (password) user.password = password;
     if (user_type) user.user_type = user_type;
     if (profile_photo) user.profile_photo = profile_photo;
     if (birth_date) user.birth_date = birth_date;
@@ -81,7 +82,7 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-exports.deleteUser = async (req, res) => {
+const deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) {
@@ -93,7 +94,7 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-exports.getCurrentUser = async (req, res) => {
+const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate('tags');
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -103,30 +104,26 @@ exports.getCurrentUser = async (req, res) => {
   }
 };
 
-exports.updateCurrentUser = async (req, res) => {
+const updateCurrentUser = async (req, res) => {
   try {
     console.log("Datos recibidos para actualizar:", req.body);
     
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Actualizar campos permitidos
     const allowedFields = [
       'name', 'lastname', 'email', 'phone', 'province', 
       'canton', 'address', 'birth_date', 'profile_photo', 'tags'
     ];
 
-    // Excluir user_type y password de la actualización
     const updateData = { ...req.body };
     delete updateData.user_type;
     delete updateData.password;
 
-    // Ensure tags are valid IDs
     if (updateData.tags) {
       updateData.tags = updateData.tags.filter(tagId => mongoose.Types.ObjectId.isValid(tagId));
     }
 
-    // Update user with new data
     Object.keys(updateData).forEach(key => {
       if (allowedFields.includes(key)) {
         user[key] = updateData[key];
@@ -134,8 +131,6 @@ exports.updateCurrentUser = async (req, res) => {
     });
 
     const updatedUser = await user.save();
-
-    // Get updated user with populated tags and without password
     const populatedUser = await User.findById(updatedUser._id)
       .populate('tags')
       .select('-password');
@@ -152,11 +147,10 @@ exports.updateCurrentUser = async (req, res) => {
   }
 };
 
-exports.updatePassword = async (req, res) => {
+const updatePassword = async (req, res) => {
   try {
     const { current_password, password, password_confirmation } = req.body;
     
-    // Validar que todos los campos estén presentes
     if (!current_password || !password || !password_confirmation) {
       return res.status(400).json({
         message: 'Todos los campos son requeridos',
@@ -168,7 +162,6 @@ exports.updatePassword = async (req, res) => {
       });
     }
 
-    // Validar que las contraseñas coincidan
     if (password !== password_confirmation) {
       return res.status(400).json({
         message: 'Las contraseñas no coinciden',
@@ -178,13 +171,11 @@ exports.updatePassword = async (req, res) => {
       });
     }
 
-    // Obtener el usuario
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    // Verificar la contraseña actual
     const isMatch = await user.comparePassword(current_password);
     if (!isMatch) {
       return res.status(400).json({
@@ -195,7 +186,6 @@ exports.updatePassword = async (req, res) => {
       });
     }
 
-    // Actualizar la contraseña
     user.password = password;
     await user.save();
 
@@ -209,7 +199,7 @@ exports.updatePassword = async (req, res) => {
   }
 };
 
-exports.updateProfilePhoto = async (req, res) => {
+const updateProfilePhoto = async (req, res) => {
   try {
     console.log('Received file:', req.file);
     console.log('Request body:', req.body);
@@ -223,7 +213,6 @@ exports.updateProfilePhoto = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Subir la imagen a S3
     const params = {
       Bucket: 'chambero-profile-bucket',
       Key: `profile-photos/${Date.now()}-${req.file.originalname}`,
@@ -233,11 +222,9 @@ exports.updateProfilePhoto = async (req, res) => {
 
     const { Location } = await s3.upload(params).promise();
 
-    // Actualizar el usuario con la nueva URL de la foto
     user.profile_photo = Location;
     const updatedUser = await user.save();
 
-    // Obtener los datos del usuario sin la contraseña y con los tags poblados
     const userResponse = await User.findById(updatedUser._id)
       .select('-password')
       .populate('tags');
@@ -251,13 +238,11 @@ exports.updateProfilePhoto = async (req, res) => {
   }
 };
 
-// Buscar usuario por slug (nombre-apellido)
-exports.getUserBySlug = async (req, res) => {
+const getUserBySlug = async (req, res) => {
   try {
     const slug = req.params.slug;
     if (!slug) return res.status(400).json({ message: 'Slug is required' });
-
-    // Separar el slug en nombre y apellido
+    
     const [namePart, ...lastnameParts] = slug.split('-');
     if (!namePart || lastnameParts.length === 0) {
       return res.status(400).json({ message: 'Invalid slug format' });
@@ -265,7 +250,6 @@ exports.getUserBySlug = async (req, res) => {
     const name = namePart.replace(/\b\w/g, l => l.toUpperCase());
     const lastname = lastnameParts.join(' ').replace(/\b\w/g, l => l.toUpperCase());
 
-    // Buscar usuario ignorando mayúsculas/minúsculas y espacios
     const user = await User.findOne({
       name: { $regex: `^${name}$`, $options: 'i' },
       lastname: { $regex: `^${lastname}$`, $options: 'i' }
@@ -276,4 +260,102 @@ exports.getUserBySlug = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+};
+
+const addWorkPhoto = async (req, res) => {
+  try {
+    const { description } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ message: "No se ha proporcionado ninguna imagen" });
+    }
+
+    const s3Params = {
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: `work-gallery/${req.user._id}/${Date.now()}-${file.originalname}`,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+      ACL: "public-read",
+    };
+
+    const uploadResult = await s3.upload(s3Params).promise();
+
+    const user = await User.findById(req.user._id);
+    user.work_gallery.push({
+      image_url: uploadResult.Location,
+      description: description || "",
+    });
+    await user.save();
+
+    res.status(200).json({
+      message: "Foto agregada exitosamente",
+      photo: user.work_gallery[user.work_gallery.length - 1],
+    });
+  } catch (error) {
+    console.error("Error al agregar foto:", error);
+    res.status(500).json({ message: "Error al agregar la foto" });
+  }
+};
+
+const deleteWorkPhoto = async (req, res) => {
+  try {
+    const { photoId } = req.params;
+    const user = await User.findById(req.user._id);
+
+    const photo = user.work_gallery.id(photoId);
+    if (!photo) {
+      return res.status(404).json({ message: "Foto no encontrada" });
+    }
+
+    const key = photo.image_url.split("/").slice(-2).join("/");
+
+    await s3.deleteObject({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: key,
+    }).promise();
+
+    user.work_gallery = user.work_gallery.filter(
+      (p) => p._id.toString() !== photoId
+    );
+    await user.save();
+
+    res.status(200).json({ message: "Foto eliminada exitosamente" });
+  } catch (error) {
+    console.error("Error al eliminar foto:", error);
+    res.status(500).json({ message: "Error al eliminar la foto" });
+  }
+};
+
+const getWorkGallery = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).select("work_gallery");
+
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    res.status(200).json({ gallery: user.work_gallery });
+  } catch (error) {
+    console.error("Error al obtener galería:", error);
+    res.status(500).json({ message: "Error al obtener la galería" });
+  }
+};
+
+// Exportar todas las funciones
+module.exports = {
+  getAllUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+  getCurrentUser,
+  updateCurrentUser,
+  updatePassword,
+  updateProfilePhoto,
+  getUserBySlug,
+  addWorkPhoto,
+  deleteWorkPhoto,
+  getWorkGallery,
 };
