@@ -238,12 +238,19 @@ const updateProfilePhoto = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 // Resolved merge conflict in getUserBySlug function
+=======
+>>>>>>> eae6683a1f4b50dc92cf83c544244c3c84704d85
 const getUserBySlug = async (req, res) => {
   try {
     const slug = req.params.slug;
     if (!slug) return res.status(400).json({ message: 'Slug is required' });
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> eae6683a1f4b50dc92cf83c544244c3c84704d85
     const [namePart, ...lastnameParts] = slug.split('-');
     if (!namePart || lastnameParts.length === 0) {
       return res.status(400).json({ message: 'Invalid slug format' });
