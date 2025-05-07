@@ -238,6 +238,7 @@ const updateProfilePhoto = async (req, res) => {
   }
 };
 
+// Resolved merge conflict in getUserBySlug function
 const getUserBySlug = async (req, res) => {
   try {
     const slug = req.params.slug;

@@ -17,6 +17,10 @@ const jobSchema = new mongoose.Schema({
   chambero_ok: { 
     type: Boolean, 
     default: false 
+  },
+  has_review: {
+    type: Boolean,
+    default: false
   }
 });
 
