@@ -10,7 +10,8 @@ const {
   googleCallback,
   facebookAuth,
   facebookCallback,
-} = require("../controllers/AuthController");
+  checkPhone
+} = require("../controllers/authController");
 
 // Auth routes
 router.post("/register", register);
@@ -23,6 +24,9 @@ router.get("/google", googleAuth);
 router.get("/google/callback", googleCallback);
 router.get("/facebook", facebookAuth);
 router.get("/facebook/callback", facebookCallback);
+
+// Check phone route
+router.get("/check-phone/:phone", checkPhone);
 
 // Get current user route
 router.get("/me", require("../middleware/authMiddleware"), me);
