@@ -37,6 +37,7 @@ const userSchema = new mongoose.Schema({
   // Social authentication fields
   socialId: { type: String },
   socialProvider: { type: String, enum: ['google', 'facebook'] },
+  isProfileComplete: { type: Boolean, default: false },
   work_gallery: [workGallerySchema]
 }, {
   timestamps: true,
