@@ -17,8 +17,15 @@ exports.getAllJobs = async (req, res) => {
     }
 
     // Add status filters if they exist
-    if (req.query.status && Array.isArray(req.query.status)) {
-      query.status = { $in: req.query.status };
+    if (req.query.status) {
+      let statusArray = req.query.status;
+      if (typeof statusArray === "string") {
+        // Puede venir como 'completed,in_progress' o solo 'completed'
+        statusArray = statusArray.split(",");
+      }
+      if (Array.isArray(statusArray)) {
+        query.status = { $in: statusArray };
+      }
     }
 
     const jobs = await Job.find(query)

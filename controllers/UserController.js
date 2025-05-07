@@ -33,7 +33,7 @@ const getUserById = async (req, res) => {
   }
 };
 
-exports.createUser = async (req, res) => {
+const createUser = async (req, res) => {
   const {
     name,
     email,
