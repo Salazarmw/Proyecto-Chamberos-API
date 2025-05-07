@@ -20,8 +20,14 @@ exports.getAllQuotations = async (req, res) => {
     }
 
     // Add status filters if they exist
-    if (req.query.status && Array.isArray(req.query.status)) {
-      query.status = { $in: req.query.status };
+    if (req.query.status) {
+      let statusArray = req.query.status;
+      if (typeof statusArray === "string") {
+        statusArray = statusArray.split(",");
+      }
+      if (Array.isArray(statusArray)) {
+        query.status = { $in: statusArray };
+      }
     }
 
     const quotations = await Quotation.find(query)

@@ -33,7 +33,7 @@ const getUserById = async (req, res) => {
   }
 };
 
-exports.createUser = async (req, res) => {
+const createUser = async (req, res) => {
   const {
     name,
     email,
@@ -323,7 +323,7 @@ const getUserBySlug = async (req, res) => {
   try {
     const slug = req.params.slug;
     if (!slug) return res.status(400).json({ message: 'Slug is required' });
-    
+
     const [namePart, ...lastnameParts] = slug.split('-');
     if (!namePart || lastnameParts.length === 0) {
       return res.status(400).json({ message: "Invalid slug format" });
