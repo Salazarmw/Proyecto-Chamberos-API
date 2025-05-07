@@ -13,6 +13,7 @@ const {
   checkPhone
 } = require("../controllers/authController");
 
+
 // Auth routes
 router.post("/register", register);
 router.post("/login", login);
