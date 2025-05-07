@@ -164,6 +164,7 @@ const login = async (req, res) => {
         birth_date: user.birth_date,
         tags: user.tags,
         isVerified: user.isVerified,
+        isProfileComplete: user.isProfileComplete,
       },
     });
   } catch (error) {
@@ -279,6 +280,7 @@ const handleSocialAuthCallback = async (req, res) => {
         birth_date: user.birth_date,
         tags: user.tags,
         isVerified: user.isVerified,
+        isProfileComplete: user.isProfileComplete,
       },
     });
   } catch (error) {
@@ -323,8 +325,32 @@ const facebookCallback = [
     failureRedirect: '/login',
     session: false
   }),
-  handleSocialAuthCallback
+  (req, res) => {
+    try {
+      const user = req.user;
+      const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "24h",
+      });
+
+      // Redirigir al frontend con el token
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+    } catch (error) {
+      console.error('Error in facebookCallback:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+    }
+  }
 ];
+
+// Verificar si el teléfono ya está registrado
+const checkPhone = async (req, res) => {
+  try {
+    const phone = req.params.phone;
+    const user = await User.findOne({ phone });
+    res.json({ exists: !!user });
+  } catch (error) {
+    res.status(500).json({ message: "Error checking phone", error: error.message });
+  }
+};
 
 module.exports = {
   register,
@@ -335,5 +361,6 @@ module.exports = {
   googleAuth,
   googleCallback,
   facebookAuth,
-  facebookCallback
+  facebookCallback,
+  checkPhone,
 };

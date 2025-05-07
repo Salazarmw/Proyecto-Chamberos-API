@@ -46,6 +46,7 @@ passport.use(
             password: crypto.randomBytes(20).toString("hex"),
             user_type: "client",
             isVerified: true,
+            isProfileComplete: false,
           });
         } else if (!user.socialId) {
           // Si el usuario existe pero no tiene socialId, actualizarlo
@@ -93,6 +94,7 @@ passport.use(
             isVerified: true,
             socialId: profile.id,
             socialProvider: "facebook",
+            isProfileComplete: false,
           });
         } else if (!user.socialId) {
           // Si el usuario existe pero no tiene socialId, actualizarlo
